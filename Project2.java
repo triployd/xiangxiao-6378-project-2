@@ -15,12 +15,13 @@ public class Project2{
 	public static int minSendDelay;
 	public static int snapshotDelay;
 	public static int maxNumber;
-	public static int lineCount;
+	public static int lineCount; //record how many effective lines in config file
 	public static ArrayList<String> nodeNames = new ArrayList<String>();
 	public static ArrayList<String> hostNames = new ArrayList<String>();
 	public static ArrayList<String> portNums = new ArrayList<String>();
 	public static ArrayList<String> neighborLists = new ArrayList<String>();
 	public static ServerSocket serverSock;
+	public static int[] vectorClock;
 
 
 	public static void main(String[] args){
@@ -33,8 +34,9 @@ public class Project2{
 		config_file = args[1];
 		readConfig();
 		System.out.println("readConfig done");
+		initializeClock();
 		enableServer();
-		sleep(5000);
+		sleep(1000);
 		
 
 	}
@@ -97,7 +99,7 @@ public class Project2{
 					//lineCount++;
 					continue;
 				} 
-				System.out.println("Bad config file with excessive paths ");
+				System.out.println("Bad config file with excessive paths or other incorrect information");
 			}
 		}catch(IOException e){
 			System.out.println("readConfig() exceptions ");
@@ -129,6 +131,12 @@ public class Project2{
 		}catch(InterruptedException ex){
 			Thread.currentThread().interrupt();
 		}
+	}
+
+	static void initializeClock(){
+		vectorClock = new int[numberNodes];
+		Arrays.fill(vectorClock, 0);
+		return;
 	}
 
 
