@@ -24,6 +24,7 @@ public class Project2{
 	public static int[] vectorClock;
 	public static boolean isActive = false;
 	public static int totalAppSent = 0;
+	public static ArrayList<String> allMyNeighbors;
 
 
 	public static void main(String[] args){
@@ -36,6 +37,7 @@ public class Project2{
 		config_file = args[1];
 		readConfig();
 		System.out.println("readConfig done");
+		allMyNeighbors = getAllNeighbors();
 		initializeClock();
 		decideActive();
 		enableServer();
@@ -153,6 +155,35 @@ public class Project2{
 		if(randomValue > 5000) isActive = true;
 		System.out.println("isActive for node "+nodeID+" : "+isActive);
 		return;
+	}
+
+	static ArrayList<String> getAllNeighbors(){
+		int i = 0;
+		int nodeIDInt = Integer.parseInt(nodeID);
+		ArrayList<String> result = new ArrayList<String>();
+		while(i < neighborLists.size()){
+			String line = neighborLists.get(i);
+			if(nodeIDInt == i){
+				String[] parts1 = line.split("\\s+");
+				for(int j=0; j<parts1.length; j++){
+					if(!result.contains(parts1[j])){
+						result.add(parts1[j]);
+					}
+				}
+			}else{
+				if(line.contains(nodeID)){
+					if(!result.contains(Integer.toString(i))){
+						result.add(Integer.toString(i));
+					}
+				}
+			}
+			i++;
+		}
+		System.out.println("All neighbors for node "+nodeID+":");
+		for(int k=0; k<result.size(); k++){
+			System.out.println(result.get(k));
+		}
+		return result;
 	}
 
 
