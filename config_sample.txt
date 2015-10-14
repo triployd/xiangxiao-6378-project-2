@@ -1,0 +1,23 @@
+# six global parameters (see above)
+# number of nodes
+# minPerActive
+# maxPerActive
+# minSendDelay
+# snapshotDelay
+# maxNumber
+
+6 		 6  	 10 	  100   	 2000     	15  # six parameters
+
+0   	dc20   4673    	# nodeID hostName listenPort
+1   dc21   5683
+		2     dc22 		8907
+3     dc23     4612
+  4 	dc24    	6784
+5     dc25   5434
+
+1   4  	    # space delimited list of neighbors for node 0
+   2   3   4  	# . . . node 1
+0  1   3  	# . . . node 2
+  	0   4    	# . . . node 3
+1   3  		# . . . node 4
+2  4
