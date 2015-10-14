@@ -34,6 +34,7 @@ public class Project2{
 		readConfig();
 		System.out.println("readConfig done");
 		enableServer();
+		sleep(5000);
 		
 
 	}
@@ -119,6 +120,14 @@ public class Project2{
 		}catch (IOException e){
 			System.out.println("Could not listen on port " + port);
 			System.exit(-1);
+		}
+	}
+
+	static void sleep(int milliseconds){
+		try {
+			Thread.sleep(milliseconds);
+		}catch(InterruptedException ex){
+			Thread.currentThread().interrupt();
 		}
 	}
 
