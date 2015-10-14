@@ -22,6 +22,8 @@ public class Project2{
 	public static ArrayList<String> neighborLists = new ArrayList<String>();
 	public static ServerSocket serverSock;
 	public static int[] vectorClock;
+	public static boolean isActive = false;
+	public static int totalAppSent = 0;
 
 
 	public static void main(String[] args){
@@ -35,6 +37,7 @@ public class Project2{
 		readConfig();
 		System.out.println("readConfig done");
 		initializeClock();
+		decideActive();
 		enableServer();
 		sleep(1000);
 		
@@ -136,6 +139,19 @@ public class Project2{
 	static void initializeClock(){
 		vectorClock = new int[numberNodes];
 		Arrays.fill(vectorClock, 0);
+		return;
+	}
+
+	static void decideActive(){
+		if(Integer.parseInt(nodeID) == 0){
+			isActive = true;
+			System.out.println("isActive for node "+nodeID+" : "+isActive);
+			return;
+		}
+		Random randomGenerator = new Random();
+		int randomValue = randomGenerator.nextInt(10000);
+		if(randomValue > 5000) isActive = true;
+		System.out.println("isActive for node "+nodeID+" : "+isActive);
 		return;
 	}
 
