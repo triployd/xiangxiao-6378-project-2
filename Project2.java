@@ -25,6 +25,8 @@ public class Project2{
 	public static boolean isActive = false;
 	public static int totalAppSent = 0;
 	public static ArrayList<String> allMyNeighbors;
+	public static Socket[] outSocket;
+	public static final String UTDSUFFIX = ".utdallas.edu";
 
 
 	public static void main(String[] args){
@@ -35,14 +37,17 @@ public class Project2{
 		}
 		nodeID = args[0];
 		config_file = args[1];
+		Project2 project2 = new Project2();
 		readConfig();
 		System.out.println("readConfig done");
 		allMyNeighbors = getAllNeighbors();
-		initializeClock();
-		decideActive();
+		vectorClock = initializeClock();
+		isActive = decideActive(); //50% chance to be active
+		System.out.println("isActive for node "+nodeID+" : "+isActive);
 		enableServer();
-		sleep(1000);
-		
+		sleep(2000);
+		connectMyNeighbors();
+		project2.listenSocket();
 
 	}
 
@@ -110,8 +115,6 @@ public class Project2{
 			System.out.println("readConfig() exceptions ");
 			e.printStackTrace();
 		}
-
-
 	}
 
 	static void enableServer(){
@@ -138,23 +141,20 @@ public class Project2{
 		}
 	}
 
-	static void initializeClock(){
-		vectorClock = new int[numberNodes];
-		Arrays.fill(vectorClock, 0);
-		return;
+	static int[] initializeClock(){
+		int[] result = new int[numberNodes];
+		Arrays.fill(result, 0);
+		return result;
 	}
 
-	static void decideActive(){
+	static boolean decideActive(){
 		if(Integer.parseInt(nodeID) == 0){
-			isActive = true;
-			System.out.println("isActive for node "+nodeID+" : "+isActive);
-			return;
+			return true;
 		}
 		Random randomGenerator = new Random();
 		int randomValue = randomGenerator.nextInt(10000);
-		if(randomValue > 5000) isActive = true;
-		System.out.println("isActive for node "+nodeID+" : "+isActive);
-		return;
+		if(randomValue > 5000) return true;
+		else return false;
 	}
 
 	static ArrayList<String> getAllNeighbors(){
@@ -186,6 +186,98 @@ public class Project2{
 		return result;
 	}
 
+	static void connectMyNeighbors(){
+		outSocket = new Socket[numberNodes];
+		int intID = Integer.parseInt(nodeID);
+		for(int i=0; i<allMyNeighbors.size(); i++){
+			int target = Integer.parseInt(allMyNeighbors.get(i));
+			String host = hostNames.get(target)+UTDSUFFIX;
+			int port = Integer.parseInt(portNums.get(target));
+			tryConnect(host, port, target);
+		}
+		return;
+	}
+
+	static void tryConnect(String host, int port, int target){
+		boolean scanning = true;
+		int times = 0;
+		while(scanning){
+			try{
+				System.out.println("host and port and target: ");
+				System.out.println(host + " " + port + " " + target);
+				outSocket[target] = new Socket(host, port);
+				scanning = false;
+				PrintWriter writer = new PrintWriter(outSocket[target].getOutputStream(), true); 	//boolean autoflush or not?
+				writer.println("Hello, I am node "+nodeID);
+				writer.close();
+			}catch(IOException ex){
+				if(times > 5){
+					System.out.println("Connection failed, need to fix some bugs, giving up reconnecting");
+					scanning = false;
+				}
+				System.out.println("Connection failed, reconnecting in 2 seconds");
+				times++;
+				sleep(2000);
+			}
+		}
+	}
+
+	void listenSocket(){
+		boolean scanning = true;
+		while(scanning){
+			ClientWorker w;
+			try{
+				w = new ClientWorker(serverSock.accept());
+				Thread t = new Thread(w);
+				t.start();
+			}catch(IOException e){
+				System.out.println("Accept failed in listenSocket(), node "+nodeID+" terminated");
+				try {
+					serverSock.close();
+					Thread.currentThread().interrupt();
+					}catch(IOException ex){
+						System.out.println("this node has already terminated, node : " + nodeID);
+					}
+				System.exit(-1);
+			}
+		}	
+	}
+
+	class ClientWorker implements Runnable {
+		private Socket client;
+
+		//Constructor
+		ClientWorker(Socket client) {
+			this.client = client;
+		}
+		
+		public void run(){
+			String line;
+			BufferedReader in = null;
+			PrintWriter out = null;
+			boolean scanning = true;
+			try{
+				in = new BufferedReader(new InputStreamReader(client.getInputStream()));
+				out = new PrintWriter(client.getOutputStream(), true);
+			}catch (IOException e) {
+				System.out.println("in or out failed");
+				System.exit(-1);
+			}
+			
+			while(scanning){
+				try{
+					line = in.readLine();
+					if(line != null){
+						System.out.println("Node "+nodeID+" Message received: " + line);
+					}
+				}catch(IOException e){
+					System.out.println("Read failed from ClientWorker-->run()--> while(scanning)-->try{}");
+					scanning = false;
+					System.exit(-1);
+				}
+			}	
+		}
+	}
 
 
 }
