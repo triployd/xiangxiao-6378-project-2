@@ -27,6 +27,7 @@ public class Project2{
 	public static ArrayList<String> allMyNeighbors;
 	public static Socket[] outSocket;
 	public static final String UTDSUFFIX = ".utdallas.edu";
+	public static int messagesToSend; //anywhere from minPerActive to maxPerActive at one time then turn passive
 
 
 	public static void main(String[] args){
@@ -43,18 +44,19 @@ public class Project2{
 		allMyNeighbors = getAllNeighbors();
 		vectorClock = initializeClock();
 		isActive = decideActive(); //50% chance to be active
-		System.out.println("isActive for node "+nodeID+" : "+isActive);
+		
 		enableServer();
-		sleep(2000);
+		sleep(4000);
 		connectMyNeighbors();
+
 		project2.listenSocket();
 
 	}
 
 	static void readConfig(){
 		lineCount = 0;
-		System.out.println("Node "+ nodeID + ": Starting to read config file!");
-		System.out.println();
+		//System.out.println("Node "+ nodeID + ": Starting to read config file!");
+		//System.out.println();
 		try(BufferedReader br = new BufferedReader(new FileReader(config_file))){
 			String currentLine;
 			while ((currentLine = br.readLine()) != null){
@@ -211,14 +213,32 @@ public class Project2{
 				writer.println("Hello, I am node "+nodeID);
 				writer.close();
 			}catch(IOException ex){
-				if(times > 5){
+				if(times > 20){
 					System.out.println("Connection failed, need to fix some bugs, giving up reconnecting");
 					scanning = false;
 				}
-				System.out.println("Connection failed, reconnecting in 2 seconds");
+				System.out.println("Connection failed, reconnecting in 1 seconds");
 				times++;
-				sleep(2000);
+				sleep(1000);
 			}
+		}
+	}
+
+	static void sendAppMessage(){
+		Random randomGenerator = new Random();
+		int index = randomGenerator.nextInt(allMyNeighbors.size());
+		int target = Integer.parseInt(allMyNeighbors.get(index));
+		int intID = Integer.parseInt(nodeID);
+		vectorClock[intID]++;
+		totalAppSent++;
+		String message = "Application Message "+Arrays.toString(vectorClock);
+		System.out.println("Message sent: "+message);
+		try{
+			PrintWriter writer = new PrintWriter(outSocket[target].getOutputStream(), true);
+			writer.println(message);
+			writer.close();
+		}catch(IOException ex){
+			System.out.println("Error in sendAppMessage(), unable to send the message");
 		}
 	}
 
@@ -236,11 +256,11 @@ public class Project2{
 					serverSock.close();
 					Thread.currentThread().interrupt();
 					}catch(IOException ex){
-						System.out.println("this node has already terminated, node : " + nodeID);
+						System.out.println("This node has already terminated, nodeID: " + nodeID);
 					}
 				System.exit(-1);
 			}
-		}	
+		}
 	}
 
 	class ClientWorker implements Runnable {
@@ -256,11 +276,12 @@ public class Project2{
 			BufferedReader in = null;
 			PrintWriter out = null;
 			boolean scanning = true;
+			int intNodeID = Integer.parseInt(nodeID);
 			try{
 				in = new BufferedReader(new InputStreamReader(client.getInputStream()));
 				out = new PrintWriter(client.getOutputStream(), true);
 			}catch (IOException e) {
-				System.out.println("in or out failed");
+				System.out.println("in or out failed in run()");
 				System.exit(-1);
 			}
 			
@@ -269,6 +290,21 @@ public class Project2{
 					line = in.readLine();
 					if(line != null){
 						System.out.println("Node "+nodeID+" Message received: " + line);
+						if(line.contains("Application")){
+							vectorClock[intNodeID]++;
+							int[] timeStampReceived = extractTimeStamp(line);
+							if(timeStampReceived.length != vectorClock.length){
+								System.out.println("timeStampReceived.length!=vectorClock.length ! Error !");
+							}else{
+								//get the max timestamp elements!
+								vectorClock = getNewVectorClock(vectorClock, timeStampReceived);
+
+							}
+							if(!isActive && totalAppSent <= maxNumber){
+								isActive = true;
+							}
+
+						}
 					}
 				}catch(IOException e){
 					System.out.println("Read failed from ClientWorker-->run()--> while(scanning)-->try{}");
@@ -279,5 +315,31 @@ public class Project2{
 		}
 	}
 
+	static int[] extractTimeStamp(String original){
+		String cut = original.substring(original.indexOf('[')+1, original.indexOf(']'));
+		cut = cut.replaceAll("\\s+", "");
+		String[] items = cut.split(",");
+		int[] result = new int[items.length];
+		for (int i = 0; i < items.length; i++) {
+    		try {
+        		result[i] = Integer.parseInt(items[i]);
+    		}catch(NumberFormatException nfe){
+    			System.out.println("NumberFormatException in extractTimeStamp()");
+    		}
+		}
+		return result;
+	}
+
+	static int[] getNewVectorClock(int[] first, int[] second){//get the max timestamp elements
+		int[] result = new int[first.length];
+		if(first.length != second.length){
+			System.out.println("first.length != second.length ! error !");
+		}else{
+			for(int i=0; i<first.length; i++){
+				result[i] = (first[i]>second[i])? first[i] : second[i];
+			}
+		}
+		return result;
+	}
 
 }
