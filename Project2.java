@@ -21,13 +21,13 @@ public class Project2{
 	public static ArrayList<String> portNums = new ArrayList<String>();
 	public static ArrayList<String> neighborLists = new ArrayList<String>();
 	public static ServerSocket serverSock;
-	public static int[] vectorClock;
-	public static boolean isActive = false;
-	public static int totalAppSent = 0;
+	public static volatile int[] vectorClock;
+	public static volatile boolean isActive = false;
+	public static volatile int totalAppSent = 0;
 	public static ArrayList<String> allMyNeighbors;
 	public static Socket[] outSocket;
 	public static final String UTDSUFFIX = ".utdallas.edu";
-	public static int messagesToSend; //anywhere from minPerActive to maxPerActive at one time then turn passive
+	public static int numberMessagesToSend; //anywhere from minPerActive to maxPerActive at one time then turn passive
 
 
 	public static void main(String[] args){
@@ -36,17 +36,23 @@ public class Project2{
 			System.out.println("Please input the node ID and config file");
 			return;
 		}
+		
 		nodeID = args[0];
 		config_file = args[1];
 		Project2 project2 = new Project2();
+
 		readConfig();
-		System.out.println("readConfig done");
+
 		allMyNeighbors = getAllNeighbors();
+
 		vectorClock = initializeClock();
+
 		isActive = decideActive(); //50% chance to be active
 		
 		enableServer();
+
 		sleep(4000);
+
 		connectMyNeighbors();
 
 		project2.listenSocket();
@@ -229,7 +235,7 @@ public class Project2{
 		int index = randomGenerator.nextInt(allMyNeighbors.size());
 		int target = Integer.parseInt(allMyNeighbors.get(index));
 		int intID = Integer.parseInt(nodeID);
-		vectorClock[intID]++;
+		vectorClock[intID]++; //need to use a lock to lock it somewhere
 		totalAppSent++;
 		String message = "Application Message "+Arrays.toString(vectorClock);
 		System.out.println("Message sent: "+message);
@@ -263,7 +269,7 @@ public class Project2{
 		}
 	}
 
-	class ClientWorker implements Runnable {
+	class ClientWorker implements Runnable{
 		private Socket client;
 
 		//Constructor
@@ -296,13 +302,15 @@ public class Project2{
 							if(timeStampReceived.length != vectorClock.length){
 								System.out.println("timeStampReceived.length!=vectorClock.length ! Error !");
 							}else{
-								//get the max timestamp elements!
+								//get the max timestamp elements! need to use lock too!
 								vectorClock = getNewVectorClock(vectorClock, timeStampReceived);
-
+								
 							}
 							if(!isActive && totalAppSent <= maxNumber){
 								isActive = true;
+								//then send messages...
 							}
+						}else if(line.contains("Marker")){
 
 						}
 					}
@@ -341,5 +349,13 @@ public class Project2{
 		}
 		return result;
 	}
+
+	static int getNumberOfMsgToSend(){
+		Random randomGenerator = new Random();
+		int result = randomGenerator.nextInt(maxPerActive - minPerActive);
+		result += minPerActive;
+		return result;
+	}
+
 
 }
