@@ -34,8 +34,14 @@ public class Project2{
 	public static ArrayList<String> allMyNeighbors;
 	public static Socket[] outSocket;
 	public static final String UTDSUFFIX = ".utdallas.edu";
-	
 	public static Semaphore sem = new Semaphore(1);
+	//part2:
+	public static volatile boolean isBlue = true; //all processes are blue in the beginning
+	public static volatile long lastTimeSnapshot = 0;
+	public static volatile int numMarkerSent = 0;
+	public static volatile int numMarkerReceived = 0;
+	public static volatile boolean node0InfoCollected = false;
+	public static Semaphore semControlMsg = new Semaphore(1);
 
 
 	public static void main(String[] args){
@@ -62,19 +68,27 @@ public class Project2{
 
 		project2.startSendThread();
 
+		if(Integer.parseInt(nodeID) == 0){
+			project2.startSnapshotThread();
+		}
+
 		project2.listenSocket();
 
+	}
+
+	void startSnapshotThread(){
+		Thread t_Snapshot = new Thread(new SnapshotWorker());
+		t_Snapshot.start();
 	}
 
 	static void sendMarker(){
 		for(int i=0; i<allMyNeighbors.size(); i++){
 			int target = Integer.parseInt(allMyNeighbors.get(i));
 			int intID = Integer.parseInt(nodeID);
-			String message = "Marker, Sent_time(Sys): "+System.currentTimeMillis()+" "+nodeID+"-"+target;
+			String message = "MARKER, Sent_time(Sys): "+System.currentTimeMillis()+" "+nodeID+"-"+target;
 			try{
 				PrintWriter writer = new PrintWriter(outSocket[target].getOutputStream(), true);
 				writer.println(message);
-			//writer.close();
 			}catch(IOException ex){
 				System.out.println("Error in sendAppMessage(), unable to send the message, Node "+nodeID);
 				ex.printStackTrace();
@@ -258,6 +272,77 @@ public class Project2{
 		}
 	}
 
+	class SnapshotWorker implements Runnable{
+		private volatile boolean running = true;
+		SnapshotWorker(){}
+		public void run(){
+			sleep(4000);
+
+			while(running){
+				if(Integer.parseInt(nodeID) == 0){
+					//node 0 needs to send initiate CL algo and be the first node to send marker messages
+					//System.out.println("Node 0 sending marker ");
+					long currentTime = System.currentTimeMillis();
+					try{
+						semControlMsg.acquire();
+					}catch(InterruptedException ie){
+						System.out.println("semControlMsg.acquire failed in listenSocket.run() for Node 0 ");
+					}
+					if(totalAppSent > 0 && currentTime - lastTimeSnapshot > snapshotDelay && isBlue){
+						isBlue = false; //turn red
+						sendMarker();
+						lastTimeSnapshot = currentTime;
+					}
+					semControlMsg.release();
+				}
+			}
+		}
+
+	}
+
+	class SenderWorker implements Runnable{
+
+		private volatile boolean running = true;
+
+		SenderWorker(){}
+
+		public void run(){
+
+			sleep(4000);
+
+			while(running){
+				//at this moment it needs to send app msg to some other neighbor
+				long currentTime = System.currentTimeMillis();
+				if( isActive && (currentTime - lastTimeSent) > minSendDelay && numSentThisTime < numMessagesToSend && totalAppSent < maxNumber){
+
+					try{
+						sem.acquire();
+					}catch(InterruptedException ie){
+						System.out.println("sem.acquire failed in SenderWorker.run() ");
+					}
+
+					sendAppMessage();
+					
+					lastTimeSent = currentTime;
+					totalAppSent++;
+					numSentThisTime++;
+					if(totalAppSent >= maxNumber || numSentThisTime >= numMessagesToSend){
+						isActive = false;
+						numSentThisTime = 0;
+						numMessagesToSend = getNumberOfMsgToSend(); // get a new num of messages to send
+					}
+					if(totalAppSent >= maxNumber){
+						isActive = false;
+						running = false;
+					}
+					sem.release();
+				}
+				sleep(50);
+			}
+		}
+
+	}
+
 	static void sendAppMessage(){//send events needs to handle semaphore
 		Random randomGenerator = new Random();
 		int index = randomGenerator.nextInt(allMyNeighbors.size());
@@ -266,12 +351,11 @@ public class Project2{
 
 		vectorClock[intID]++; //need to use a lock to lock it somewhere
 		
-		String message = "AppMsg, Sent_time: " + System.currentTimeMillis() + " " + nodeID + "-" + target + " " + Arrays.toString(vectorClock);
+		String message = "APPMSG, Sent_time(Sys): " + System.currentTimeMillis() + " " + nodeID + "-" + target + " " + Arrays.toString(vectorClock);
 		//System.out.println("Message to be sent: " + message);
 		try{
 			PrintWriter writer = new PrintWriter(outSocket[target].getOutputStream(), true);
 			writer.println(message);
-			//writer.close();
 		}catch(IOException ex){
 			System.out.println("Error in sendAppMessage(), unable to send the message, Node "+nodeID);
 			ex.printStackTrace();
@@ -299,47 +383,6 @@ public class Project2{
 		}
 	}
 
-	class SenderWorker implements Runnable{
-
-		private volatile boolean running = true;
-
-		SenderWorker(){}
-
-		public void run(){
-
-			sleep(5000);
-
-			while(running){
-				//at this moment it needs to send app msg to some other neighbor
-				long currentTime = System.currentTimeMillis();
-				if( isActive && (currentTime - lastTimeSent) > minSendDelay && numSentThisTime < numMessagesToSend && totalAppSent < maxNumber){
-
-					try{
-						sem.acquire();
-					}catch(InterruptedException ie){
-						System.out.println("sem.acquire failed in SenderWorker.run() ");
-					}
-
-					sendAppMessage();
-					
-					lastTimeSent = currentTime;
-					totalAppSent++;
-					numSentThisTime++;
-					if(totalAppSent >= maxNumber || numSentThisTime >= numMessagesToSend){
-						isActive = false;
-						numSentThisTime = 0;
-					}
-					if(totalAppSent >= maxNumber){
-						running = false;
-					}
-					sem.release();
-				}
-				sleep(50);
-			}
-		}
-
-	}
-
 	class ClientWorker implements Runnable{
 		private Socket client;
 		private volatile boolean scanning = true;
@@ -364,11 +407,12 @@ public class Project2{
 			}
 			
 			while(scanning){//receive events need to handle semaphore too
+				
 				try{
 					line = in.readLine();
 					if(line != null){
-						System.out.println("Node "+nodeID+" Message received: " + line);
-						if(line.contains("AppMsg")){
+						System.out.println("Node "+nodeID+" message received: " + line);
+						if(line.contains("APPMSG")){
 							try{
 								sem.acquire();
 							}catch(InterruptedException ie){
@@ -387,8 +431,29 @@ public class Project2{
 								numMessagesToSend = getNumberOfMsgToSend();
 							}
 							sem.release();
-						}else if(line.contains("Marker")){
+						}else if(line.contains("MARKER")){
+							try{
+								semControlMsg.acquire();
+							}catch(InterruptedException ie){
+								System.out.println("semControlMsg.acquire failed in listenSocket.run() ");
+							}
+							numMarkerReceived++;
+							if(isBlue && scanning){
+								isBlue = false; //turn red
+								sendMarker();
+							}
+							if(numMarkerReceived >= allMyNeighbors.size()){
+								//now need to send the state info to node 0
+								//state info: vector clock, active or passive, channel empty or not
+								isBlue = true;
+								numMarkerReceived = 0;
 
+							}
+							semControlMsg.release();
+						}else if(line.contains("FINISH")){
+							//need to forward this to other nodes as well
+							scanning = false;
+							System.out.println("Node "+nodeID+" terminated");
 						}
 					}
 				}catch(IOException e){
