@@ -7,6 +7,7 @@ import java.util.concurrent.Semaphore;
 
 public class Project2{
 	//field of the Project2
+	//part1:
 	public static String config_file;
 	public static int numberNodes; //record the number of nodes in the system
 	public static final String my_net_id = "xxw130730";
@@ -34,17 +35,20 @@ public class Project2{
 	public static ArrayList<String> allMyNeighbors;
 	public static Socket[] outSocket;
 	public static final String UTDSUFFIX = ".utdallas.edu";
-	
 	public static Semaphore sem = new Semaphore(1);
+	//part2:
+	public static volatile boolean isBlue = true; //all processes are blue in the beginning
+	public static volatile long lastTimeSnapshot = 0;
+	public static volatile int numMarkerSent = 0;
+	public static Semaphore semControlMsg = new Semaphore(1);
+
 
 
 	public static void main(String[] args){
-		if(args.length < 2)
-		{
+		if(args.length < 2){
 			System.out.println("Please input the node ID and config file");
 			return;
 		}
-
 		nodeID = args[0];
 		config_file = args[1];
 		Project2 project2 = new Project2();
@@ -55,7 +59,7 @@ public class Project2{
 		numMessagesToSend = getNumberOfMsgToSend();
 		
 		enableServer();
-		sleep(4000);
+		sleep(5000);
 
 		connectMyNeighbors();
 		sleep(1000);
@@ -64,6 +68,22 @@ public class Project2{
 
 		project2.listenSocket();
 
+	}
+
+	static void sendMarker(){
+		for(int i=0; i<allMyNeighbors.size(); i++){
+			int target = Integer.parseInt(allMyNeighbors.get(i));
+			int intID = Integer.parseInt(nodeID);
+			String message = "Marker, Sent_time(Sys): "+System.currentTimeMillis()+" "+nodeID+"-"+target;
+			try{
+				PrintWriter writer = new PrintWriter(outSocket[target].getOutputStream(), true);
+				writer.println(message);
+			//writer.close();
+			}catch(IOException ex){
+				System.out.println("Error in sendAppMessage(), unable to send the message, Node "+nodeID);
+				ex.printStackTrace();
+			}
+		}
 	}
 
 	void startSendThread(){
@@ -250,7 +270,7 @@ public class Project2{
 
 		vectorClock[intID]++; //need to use a lock to lock it somewhere
 		
-		String message = "Application Message, Sent time: " + System.currentTimeMillis() + " " + nodeID + "-" + target + " " + Arrays.toString(vectorClock);
+		String message = "AppMsg, Sent_time(Sys): " + System.currentTimeMillis() + " " + nodeID + "-" + target + " " + Arrays.toString(vectorClock);
 		//System.out.println("Message to be sent: " + message);
 		try{
 			PrintWriter writer = new PrintWriter(outSocket[target].getOutputStream(), true);
@@ -318,7 +338,7 @@ public class Project2{
 					}
 					sem.release();
 				}
-				sleep(50);
+				sleep(10);
 			}
 		}
 
