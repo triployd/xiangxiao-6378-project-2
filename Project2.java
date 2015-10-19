@@ -55,7 +55,7 @@ public class Project2{
 		numMessagesToSend = getNumberOfMsgToSend();
 		
 		enableServer();
-		sleep(4000);
+		sleep(5000);
 
 		connectMyNeighbors();
 		sleep(1000);
@@ -64,6 +64,22 @@ public class Project2{
 
 		project2.listenSocket();
 
+	}
+
+	static void sendMarker(){
+		for(int i=0; i<allMyNeighbors.size(); i++){
+			int target = Integer.parseInt(allMyNeighbors.get(i));
+			int intID = Integer.parseInt(nodeID);
+			String message = "Marker, Sent_time(Sys): "+System.currentTimeMillis()+" "+nodeID+"-"+target;
+			try{
+				PrintWriter writer = new PrintWriter(outSocket[target].getOutputStream(), true);
+				writer.println(message);
+			//writer.close();
+			}catch(IOException ex){
+				System.out.println("Error in sendAppMessage(), unable to send the message, Node "+nodeID);
+				ex.printStackTrace();
+			}
+		}
 	}
 
 	void startSendThread(){
