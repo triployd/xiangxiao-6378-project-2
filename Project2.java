@@ -62,7 +62,7 @@ public class Project2{
 		sleep(5000);
 
 		connectMyNeighbors();
-		sleep(5000);
+		sleep(1000);
 
 		project2.startSendThread();
 
@@ -70,7 +70,7 @@ public class Project2{
 
 	}
 
-	/*static void sendMarker(){
+	static void sendMarker(){
 		for(int i=0; i<allMyNeighbors.size(); i++){
 			int target = Integer.parseInt(allMyNeighbors.get(i));
 			int intID = Integer.parseInt(nodeID);
@@ -84,7 +84,7 @@ public class Project2{
 				ex.printStackTrace();
 			}
 		}
-	}*/
+	}
 
 	void startSendThread(){
 		Thread t_Send = new Thread(new SenderWorker());
@@ -338,7 +338,7 @@ public class Project2{
 					}
 					sem.release();
 				}
-				sleep(50);
+				sleep(10);
 			}
 		}
 
@@ -392,8 +392,6 @@ public class Project2{
 							}
 							sem.release();
 						}else if(line.contains("Marker")){
-
-						}else if(line.contains("FINISH")){
 
 						}
 					}
