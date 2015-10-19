@@ -6,7 +6,7 @@
 # snapshotDelay
 # maxNumber
 
-6 		 6  	 10 	  500   	 2000     	15  # six parameters
+6 		 6  	 10 	  100   	 2000     	15  # six parameters
 
 0   	dc20   4673    	# nodeID hostName listenPort
 1   dc21   5683
