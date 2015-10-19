@@ -250,7 +250,7 @@ public class Project2{
 
 		vectorClock[intID]++; //need to use a lock to lock it somewhere
 		
-		String message = "Application Message, Sent time: " + System.currentTimeMillis() + " " + nodeID + "-" + target + " " + Arrays.toString(vectorClock);
+		String message = "AppMsg, Sent_time: " + System.currentTimeMillis() + " " + nodeID + "-" + target + " " + Arrays.toString(vectorClock);
 		//System.out.println("Message to be sent: " + message);
 		try{
 			PrintWriter writer = new PrintWriter(outSocket[target].getOutputStream(), true);
