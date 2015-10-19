@@ -352,7 +352,7 @@ public class Project2{
 					line = in.readLine();
 					if(line != null){
 						System.out.println("Node "+nodeID+" Message received: " + line);
-						if(line.contains("Application")){
+						if(line.contains("AppMsg")){
 							try{
 								sem.acquire();
 							}catch(InterruptedException ie){
