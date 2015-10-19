@@ -35,11 +35,8 @@ public class Project2{
 	public static Socket[] outSocket;
 	public static final String UTDSUFFIX = ".utdallas.edu";
 	
-	public static Object lockVectorClock = new Object();
-	public static Object lockIsActive = new Object();
-	public static Object lockTotalAppSent = new Object();
 	public static Semaphore sem = new Semaphore(1);
-	
+
 
 	public static void main(String[] args){
 		if(args.length < 2)
@@ -51,14 +48,11 @@ public class Project2{
 		nodeID = args[0];
 		config_file = args[1];
 		Project2 project2 = new Project2();
-
 		readConfig();
-
 		allMyNeighbors = getAllNeighbors();
-
 		vectorClock = initializeClock();
-
 		isActive = decideActive(); //50% chance to be active
+		numMessagesToSend = getNumberOfMsgToSend();
 		
 		enableServer();
 		sleep(4000);
@@ -235,7 +229,7 @@ public class Project2{
 				scanning = false;
 				PrintWriter writer = new PrintWriter(outSocket[target].getOutputStream(), true); 	//boolean autoflush or not?
 				writer.println("Hello, I am node "+nodeID);
-				writer.close();
+				//writer.close();
 			}catch(IOException ex){
 				if(times > 20){
 					System.out.println("Connection failed, need to fix some bugs, giving up reconnecting");
@@ -253,25 +247,18 @@ public class Project2{
 		int index = randomGenerator.nextInt(allMyNeighbors.size());
 		int target = Integer.parseInt(allMyNeighbors.get(index));
 		int intID = Integer.parseInt(nodeID);
-		try{
-			sem.acquire();
-		}catch(InterruptedException ie){
-			System.out.println("sem.acquire failed in sendAppMessage() ");
-		}
-		//sem.acquire();
+
 		vectorClock[intID]++; //need to use a lock to lock it somewhere
-		totalAppSent++;
-		numSentThisTime++;
 		
-		sem.release();
-		String message = "Application Message " + nodeID + "-" + target + " " + Arrays.toString(vectorClock);
-		System.out.println("Message sent: "+message);
+		String message = "Application Message, Sent time: " + System.currentTimeMillis() + " " + nodeID + "-" + target + " " + Arrays.toString(vectorClock);
+		//System.out.println("Message to be sent: " + message);
 		try{
 			PrintWriter writer = new PrintWriter(outSocket[target].getOutputStream(), true);
 			writer.println(message);
-			writer.close();
+			//writer.close();
 		}catch(IOException ex){
-			System.out.println("Error in sendAppMessage(), unable to send the message");
+			System.out.println("Error in sendAppMessage(), unable to send the message, Node "+nodeID);
+			ex.printStackTrace();
 		}
 	}
 
@@ -298,29 +285,40 @@ public class Project2{
 
 	class SenderWorker implements Runnable{
 
-		SenderWorker(){
+		private volatile boolean running = true;
 
-		}
+		SenderWorker(){}
+
 		public void run(){
-			while(isActive && totalAppSent < maxNumber){
+
+			sleep(5000);
+
+			while(running){
 				//at this moment it needs to send app msg to some other neighbor
 				long currentTime = System.currentTimeMillis();
-				if(currentTime - lastTimeSent > minSendDelay && numSentThisTime < numMessagesToSend){
-					sendAppMessage();
+				if( isActive && (currentTime - lastTimeSent) > minSendDelay && numSentThisTime < numMessagesToSend && totalAppSent < maxNumber){
+
 					try{
 						sem.acquire();
 					}catch(InterruptedException ie){
 						System.out.println("sem.acquire failed in SenderWorker.run() ");
 					}
-					//sem.acquire();
+
+					sendAppMessage();
+					
 					lastTimeSent = currentTime;
+					totalAppSent++;
+					numSentThisTime++;
 					if(totalAppSent >= maxNumber || numSentThisTime >= numMessagesToSend){
 						isActive = false;
 						numSentThisTime = 0;
 					}
+					if(totalAppSent >= maxNumber){
+						running = false;
+					}
 					sem.release();
 				}
-				sleep(500);
+				sleep(50);
 			}
 		}
 
@@ -328,6 +326,7 @@ public class Project2{
 
 	class ClientWorker implements Runnable{
 		private Socket client;
+		private volatile boolean scanning = true;
 
 		//Constructor
 		ClientWorker(Socket client) {
@@ -338,7 +337,7 @@ public class Project2{
 			String line;
 			BufferedReader in = null;
 			PrintWriter out = null;
-			boolean scanning = true;
+			//boolean scanning = true;
 			int intNodeID = Integer.parseInt(nodeID);
 			try{
 				in = new BufferedReader(new InputStreamReader(client.getInputStream()));
@@ -357,7 +356,7 @@ public class Project2{
 							try{
 								sem.acquire();
 							}catch(InterruptedException ie){
-								System.out.println("sem.acquire failed in sendAppMessage() ");
+								System.out.println("sem.acquire failed in ClientWorker.run() ");
 							}
 							vectorClock[intNodeID]++;
 							int[] timeStampReceived = extractTimeStamp(line);
@@ -366,12 +365,10 @@ public class Project2{
 							}else{
 								//get the max timestamp elements! need to use lock too!
 								vectorClock = getNewVectorClock(vectorClock, timeStampReceived);
-								
 							}
 							if((!isActive) && totalAppSent < maxNumber){
 								isActive = true;
 								numMessagesToSend = getNumberOfMsgToSend();
-								//then send messages...
 							}
 							sem.release();
 						}else if(line.contains("Marker")){
@@ -381,7 +378,7 @@ public class Project2{
 				}catch(IOException e){
 					System.out.println("Read failed from ClientWorker-->run()--> while(scanning)-->try{}");
 					scanning = false;
-					System.exit(-1);
+					//System.exit(-1);
 				}
 			}	
 		}
@@ -420,30 +417,5 @@ public class Project2{
 		result += minPerActive;
 		return result;
 	}
-
-	/*static void incrementVectorClock(){
-		synchronized(lockVectorClock){
-			int intID = Integer.parseInt(nodeID);
-			vectorClock[intID]++;
-		} 
-	}
-
-	static void updateVectorClock(int[] firstClock, int[] secondClock){
-		synchronized(lockVectorClock){
-			vectorClock = getNewVectorClock(firstClock, secondClock);
-		}
-	}
-
-	static void incrementTotalAppSent(){
-		synchronized(lockTotalAppSent){
-			totalAppSent++;
-		}
-	}
-
-	static void setIsActive(boolean bool){
-		synchronized(lockIsActive){
-			isActive = bool;
-		}
-	}*/
 
 }
