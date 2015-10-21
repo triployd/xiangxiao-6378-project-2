@@ -48,6 +48,7 @@ public class Project2{
 	public static volatile int channelCount = 0;
 	public static Semaphore semChannelState = new Semaphore(1);
 	public static int parentNode = 99;
+	public static volatile int countPassive = 0; //used for node 0 only
 
 
 	public static void main(String[] args){
@@ -107,9 +108,9 @@ public class Project2{
 		String write = Arrays.toString(vectorClock).replace("[", "").replace("]","").replaceAll(", "," ");
 		writerOutputFile.println(write);
 		countSnapshot++;
-		if(countSnapshot > 10){
-			writerOutputFile.close();
-		}
+		//if(countSnapshot > 10){
+		//	writerOutputFile.close();
+		//}
 		sem.release();
 	}
 
@@ -452,6 +453,8 @@ public class Project2{
 					line = in.readLine();
 					if(line != null){
 						System.out.println("Node "+nodeID+" message received: " + line);
+
+
 						if(line.contains("APPMSG")){
 							try{
 								sem.acquire();
@@ -480,6 +483,8 @@ public class Project2{
 								channelCount++;
 							}
 							semControlMsg.release();
+
+
 						}else if(line.contains("MARKER")){
 							try{
 								semControlMsg.acquire();
@@ -494,9 +499,9 @@ public class Project2{
 								isBlue = false; //turn red, record local state
 								sendMarker();
 								recordLocalState();
-								if(countSnapshot > 10){// if system terminates needs modifications here
-									writerOutputFile.close();
-								}
+								//if(countSnapshot > 10){// if system terminates needs modifications here
+								//	writerOutputFile.close();
+								//}
 							}
 							if(numMarkerReceived >= allMyNeighbors.size()){
 								//end of snapshot
@@ -518,13 +523,17 @@ public class Project2{
 								}
 							}
 							semControlMsg.release();
+
+
 						}else if(line.contains("FINISH")){
 							//need to forward this to other nodes as well
+							if(Integer.parseInt(nodeID) != 0){
+								scanning = false;
+								System.out.println("Node "+nodeID+" terminated");
+								writerOutputFile.close();
+								sendFinish();
+							}
 
-							scanning = false;
-							System.out.println("Node "+nodeID+" terminated");
-							writerOutputFile.close();
-							sendFinish();
 
 						}else if(line.contains("INFO")){
 							if(Integer.parseInt(nodeID) != 0 && parentNode != 99){
@@ -540,7 +549,18 @@ public class Project2{
 							if(Integer.parseInt(nodeID) == 0){
 								//need to collect the info here and determine to send FINISH or not
 								//and terminate node 0 itself after that
-
+								//int countPassive = 0;
+								if(line.contains("ISNOTACTIVE") && line.contains("EMPTY")){
+									countPassive++;
+								}else{
+									countPassive = 0;
+								}
+								if(countPassive >= allMyNeighbors.size()+2 && !isActive){
+									scanning = false;
+									sendFinish();
+									writerOutputFile.close();
+									System.out.println("Node "+nodeID+" terminated");
+								}
 							}
 						}
 					}
@@ -557,14 +577,14 @@ public class Project2{
 		for(int i=0; i<allMyNeighbors.size(); i++){
 			int target = Integer.parseInt(allMyNeighbors.get(i));
 			int intID = Integer.parseInt(nodeID);
-			String message = "FINISH"
+			String message = "FINISH";
 			try{
 				PrintWriter writer = new PrintWriter(outSocket[target].getOutputStream(), true);
 				writer.println(message);
 			}catch(IOException ex){
 				System.out.println("Error in sendFinish(), unable to send the message, Node "+nodeID);
 				System.out.println("The target node has already terminated");
-				ex.printStackTrace();
+				//ex.printStackTrace();
 			}
 		}
 	}
