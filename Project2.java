@@ -9,7 +9,7 @@ public class Project2{
 	//field of the Project2
 	public static String config_file;
 	public static int numberNodes; //record the number of nodes in the system
-	public static final String my_net_id = "xxw130730";
+	
 	public static String net_id_config;
 	public static String nodeID;
 	public static int minPerActive;
@@ -42,6 +42,8 @@ public class Project2{
 	public static volatile int numMarkerReceived = 0;
 	public static volatile boolean node0InfoCollected = false;
 	public static Semaphore semControlMsg = new Semaphore(1);
+	public static PrintWriter writerOutputFile;
+	public static volatile int countSnapshot = 0;
 
 
 	public static void main(String[] args){
@@ -55,9 +57,16 @@ public class Project2{
 		config_file = args[1];
 		Project2 project2 = new Project2();
 		readConfig();
+		initiateOutputFile();
 		allMyNeighbors = getAllNeighbors();
+		try{
+			sem.acquire();
+		}catch(InterruptedException ie){
+			System.out.println("sem.acquire failed in main() ");
+		}
 		vectorClock = initializeClock();
 		isActive = decideActive(); //50% chance to be active
+		sem.release();
 		numMessagesToSend = getNumberOfMsgToSend();
 		
 		enableServer();
@@ -74,6 +83,30 @@ public class Project2{
 
 		project2.listenSocket();
 
+	}
+
+	static void initiateOutputFile(){
+		try{
+			writerOutputFile = new PrintWriter(config_file.replace(".txt", "") + "-" +nodeID +".out");
+			//writerOutputFile.println("Net ID: xxw130730");
+		}catch(IOException e){
+			e.printStackTrace();
+		}
+	}
+
+	static void recordLocalState(){
+		try{
+			sem.acquire();
+		}catch(InterruptedException ie){
+			System.out.println("sem.acquire failed in recordLocalState ");
+		}
+		String write = Arrays.toString(vectorClock).replace("[", "").replace("]","").replaceAll(", "," ");
+		writerOutputFile.println(write);
+		countSnapshot++;
+		if(countSnapshot > 10){
+			writerOutputFile.close();
+		}
+		sem.release();
 	}
 
 	void startSnapshotThread(){
@@ -194,6 +227,7 @@ public class Project2{
 	static int[] initializeClock(){
 		int[] result = new int[numberNodes];
 		Arrays.fill(result, 0);
+		result[Integer.parseInt(nodeID)]++;
 		return result;
 	}
 
@@ -292,6 +326,7 @@ public class Project2{
 						isBlue = false; //turn red
 						sendMarker();
 						lastTimeSnapshot = currentTime;
+						recordLocalState();
 					}
 					semControlMsg.release();
 				}
@@ -337,7 +372,7 @@ public class Project2{
 					}
 					sem.release();
 				}
-				sleep(50);
+				//sleep(50);
 			}
 		}
 
@@ -439,8 +474,12 @@ public class Project2{
 							}
 							numMarkerReceived++;
 							if(isBlue && scanning){
-								isBlue = false; //turn red
+								isBlue = false; //turn red, record local state
 								sendMarker();
+								recordLocalState();
+								if(countSnapshot > 10){
+									writerOutputFile.close();
+								}
 							}
 							if(numMarkerReceived >= allMyNeighbors.size()){
 								//now need to send the state info to node 0
