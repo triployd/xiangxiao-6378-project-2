@@ -44,6 +44,10 @@ public class Project2{
 	public static Semaphore semControlMsg = new Semaphore(1);
 	public static PrintWriter writerOutputFile;
 	public static volatile int countSnapshot = 0;
+	public static volatile boolean isChannelEmpty = false;
+	public static volatile int channelCount = 0;
+	public static Semaphore semChannelState = new Semaphore(1);
+	public static int parentNode = 99;
 
 
 	public static void main(String[] args){
@@ -329,6 +333,7 @@ public class Project2{
 						recordLocalState();
 					}
 					semControlMsg.release();
+					sleep(10);
 				}
 			}
 		}
@@ -372,7 +377,7 @@ public class Project2{
 					}
 					sem.release();
 				}
-				//sleep(50);
+				sleep(50);
 			}
 		}
 
@@ -466,6 +471,15 @@ public class Project2{
 								numMessagesToSend = getNumberOfMsgToSend();
 							}
 							sem.release();
+							try{
+								semControlMsg.acquire();
+							}catch(InterruptedException ie){
+								System.out.println("semControlMsg.acquire failed in listenSocket.run() ");
+							}
+							if(!isBlue){	
+								channelCount++;
+							}
+							semControlMsg.release();
 						}else if(line.contains("MARKER")){
 							try{
 								semControlMsg.acquire();
@@ -474,25 +488,60 @@ public class Project2{
 							}
 							numMarkerReceived++;
 							if(isBlue && scanning){
+								if(parentNode == 99){
+									parentNode = getParent(line);
+								}
 								isBlue = false; //turn red, record local state
 								sendMarker();
 								recordLocalState();
-								if(countSnapshot > 10){
+								if(countSnapshot > 10){// if system terminates needs modifications here
 									writerOutputFile.close();
 								}
 							}
 							if(numMarkerReceived >= allMyNeighbors.size()){
+								//end of snapshot
 								//now need to send the state info to node 0
-								//state info: vector clock, active or passive, channel empty or not
+								//state info: active or passive, channel empty or not
 								isBlue = true;
 								numMarkerReceived = 0;
-
+								if(Integer.parseInt(nodeID)!= 0){
+									try{
+										semChannelState.acquire();
+									}catch(InterruptedException exxx){
+										System.out.println("semChannelState.acquire failed in listenSocket.run() ");
+									}
+									isChannelEmpty = (channelCount == 0);
+									sendSnapshotInfo();
+									channelCount = 0;
+									isChannelEmpty = true;
+									semChannelState.release();
+								}
 							}
 							semControlMsg.release();
 						}else if(line.contains("FINISH")){
 							//need to forward this to other nodes as well
+
 							scanning = false;
 							System.out.println("Node "+nodeID+" terminated");
+							writerOutputFile.close();
+							sendFinish();
+
+						}else if(line.contains("INFO")){
+							if(Integer.parseInt(nodeID) != 0 && parentNode != 99){
+								//forward the INFO
+								try{
+									PrintWriter writer = new PrintWriter(outSocket[parentNode].getOutputStream(), true);
+									writer.println(line);
+								}catch(IOException exxxx){
+									System.out.println("Error,unable to forward the message, Node "+nodeID);
+									exxxx.printStackTrace();
+								}
+							}
+							if(Integer.parseInt(nodeID) == 0){
+								//need to collect the info here and determine to send FINISH or not
+								//and terminate node 0 itself after that
+
+							}
 						}
 					}
 				}catch(IOException e){
@@ -501,6 +550,45 @@ public class Project2{
 					//System.exit(-1);
 				}
 			}	
+		}
+	}
+
+	static void sendFinish(){
+		for(int i=0; i<allMyNeighbors.size(); i++){
+			int target = Integer.parseInt(allMyNeighbors.get(i));
+			int intID = Integer.parseInt(nodeID);
+			String message = "FINISH"
+			try{
+				PrintWriter writer = new PrintWriter(outSocket[target].getOutputStream(), true);
+				writer.println(message);
+			}catch(IOException ex){
+				System.out.println("Error in sendFinish(), unable to send the message, Node "+nodeID);
+				System.out.println("The target node has already terminated");
+				ex.printStackTrace();
+			}
+		}
+	}
+
+	static int getParent(String marker){
+		String[] parts = marker.split("\\s+");
+		int parent = 99;
+		String[] newparts = parts[3].split("-");
+		parent = Integer.parseInt(newparts[0]);
+		return parent;
+	}
+
+	static void sendSnapshotInfo(){
+		String state = isActive ? "ISACTIVE" : "ISNOTACTIVE";
+		String channel = isChannelEmpty ? "EMPTY" : "NOTEMPTY";
+		String info = "INFO, " + state + " " + channel + " Node " + nodeID;
+		if(parentNode != 99){
+			try{
+				PrintWriter writer = new PrintWriter(outSocket[parentNode].getOutputStream(), true);
+				writer.println(info);
+			}catch(IOException ex){
+				System.out.println("Error in sendSnapshotInfo(), unable to send the message, Node "+nodeID);
+				ex.printStackTrace();
+			}
 		}
 	}
 
