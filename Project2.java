@@ -49,6 +49,7 @@ public class Project2{
 	public static Semaphore semChannelState = new Semaphore(1);
 	public static int parentNode = 99;
 	public static volatile int countPassive = 0; //used for node 0 only
+	public static volatile int countInfo = 0;
 
 
 	public static void main(String[] args){
@@ -330,7 +331,11 @@ public class Project2{
 					if(totalAppSent > 0 && currentTime - lastTimeSnapshot > snapshotDelay && isBlue){
 						isBlue = false; //turn red
 						sendMarker();
-						lastTimeSnapshot = currentTime;
+						//new change:
+						if(countInfo>0 && countInfo%(neighborLists.size()-1) == 0){
+							lastTimeSnapshot = currentTime;
+						}
+						//lastTimeSnapshot = currentTime;
 						recordLocalState();
 					}
 					semControlMsg.release();
@@ -550,6 +555,7 @@ public class Project2{
 								//need to collect the info here and determine to send FINISH or not
 								//and terminate node 0 itself after that
 								//int countPassive = 0;
+								countInfo++;//new change
 								if(line.contains("ISNOTACTIVE") && line.contains("EMPTY")){
 									countPassive++;
 								}else{
